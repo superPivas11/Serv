@@ -15,7 +15,7 @@ pending_commands = {}
 def auto_ping():
     render_url = os.environ.get('RENDER_EXTERNAL_URL')
     if not render_url:
-        render_url = "https://ТВОЙ-СЕРВЕР.onrender.com"  # ЗАМЕНИ!!!
+        render_url = "https://serv-ykcq.onrender.com"  # ЗАМЕНИ!!!
     def ping():
         while True:
             try:
