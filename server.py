@@ -14,7 +14,7 @@ results = {}
 
 def auto_ping():
     # Render НЕ ДАЕТ переменную RENDER_EXTERNAL_URL, поэтому хуйню пишем руками
-    render_url = "https://ТВОЙ-СЕРВЕР.onrender.com"  # ЗАМЕНИ НА СВОЙ URL
+    render_url = "https://serv-ykcq.onrender.com"  # ЗАМЕНИ НА СВОЙ URL
     print(f"[AUTOPING] Пингуем {render_url}")
     
     def ping():
