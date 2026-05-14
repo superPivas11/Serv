@@ -2,6 +2,9 @@
 from flask import Flask, request, jsonify
 import base64
 import os
+import threading
+import time
+import urllib.request
 from datetime import datetime
 
 app = Flask(__name__)
@@ -9,6 +12,27 @@ app = Flask(__name__)
 # Хранилище: { client_id: {"cmd": "screenshot", "pending": True} }
 pending_commands = {}
 results = {}
+
+# Автопинг для предотвращения засыпания на Render
+def auto_ping():
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if not render_url:
+        print("RENDER_EXTERNAL_URL не задан, автопинг отключен")
+        return
+    
+    def ping():
+        while True:
+            try:
+                print(f"Пингуем {render_url}...")
+                req = urllib.request.Request(render_url)
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    print(f"Пинг успешен: {response.status}")
+            except Exception as e:
+                print(f"Ошибка пинга: {e}")
+            time.sleep(600)  # 10 минут = 600 секунд
+    
+    ping_thread = threading.Thread(target=ping, daemon=True)
+    ping_thread.start()
 
 @app.route('/api', methods=['GET'])
 def get_command():
@@ -44,4 +68,6 @@ def send_command():
     return "fail"
 
 if __name__ == '__main__':
+    # Запускаем автопинг в отдельном потоке
+    auto_ping()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
